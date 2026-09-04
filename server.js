@@ -180,3 +180,28 @@ app.put('/posts/:id', authenticateJWT, async (req, res) => {
     return res.status(500).json({ message: 'Internal server error.' });
   }
 });
+
+
+//post delete
+app.delete('/post/:id', authenticateJWT, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found.' });
+    }
+ 
+    if (post.author.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'You are not authorized to delete this post.' });
+    }
+ 
+    await post.deleteOne();
+    return res.status(200).json({ message: 'Post deleted successfully.' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: 'Server error while deleting post.' });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
