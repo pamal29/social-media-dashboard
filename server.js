@@ -108,3 +108,21 @@ app.post('/logout', authenticateJWT, (req, res) => {
   return res.status(200).json({ message: 'Logout successful. Session removed.' });
 });
 
+//create post
+app.post('/posts', authenticateJWT, async (req, res) => {
+  try{
+    const { content } = req.body;
+
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      return res.status(400).json({ message: 'Post content must be a non-empty string.' });
+    }
+
+    const newPost = new Post({ content, author: req.user.id });
+    await newPost.save();
+
+    return res.status(201).json({ message: 'Post created successfully.', post: newPost });
+  } catch (err) {
+    console.error('Error creating post:', err);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+});
