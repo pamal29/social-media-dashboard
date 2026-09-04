@@ -153,3 +153,30 @@ app.get('/posts', authenticateJWT, async (req, res) => {
     return res.status(500).json({ message: 'Internal server error.' });
   }
 });
+
+//edit post 
+app.put('/posts/:id', authenticateJWT, async (req, res) => {
+  try{
+    const {content} = req.body;
+    if(!content || typeof content !== 'string' || content.trim().length === 0) {
+      return res.status(400).json({ message: 'Post content must be a non-empty string.' });
+    }
+
+    const post = await Post.findById(req.params.id);
+    if(!post){
+      return res.status(404).json({ message: 'Post not found.' });
+    }
+
+    if(post.author.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'You are not the owner of this post.' });
+    }
+
+    post.content = content;
+    await post.save();
+
+    return res.status(200).json({ message: 'Post updated successfully.', post });
+  } catch (err) {
+    console.error('Error editing post:', err);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+});
