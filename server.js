@@ -101,3 +101,10 @@ app.post('/login', async (req, res) => {
     return res.status(500).json({ message: 'Internal server error.' });
   }
 });
+
+//logout
+app.post('/logout', authenticateJWT, (req, res) => {
+  res.clearCookie('token');
+  return res.status(200).json({ message: 'Logout successful. Session removed.' });
+});
+
