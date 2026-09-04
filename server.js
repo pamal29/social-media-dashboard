@@ -126,3 +126,30 @@ app.post('/posts', authenticateJWT, async (req, res) => {
     return res.status(500).json({ message: 'Internal server error.' });
   }
 });
+
+//get posts with pagination
+app.get('/posts', authenticateJWT, async (req, res) => {
+  try{
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+    const skip = (page - 1) * limit;
+
+    const posts = await Post.find()
+      .populate('author', 'username')
+      .sort({createdAt: -1})
+      .skip(skip)
+      .limit(limit);
+
+      const total = await Post.countDocuments();
+
+      return res.status(200).json({ 
+        page,
+        limit,
+        totalPosts: total,
+        totalPages: Math.ceil(total / limit)
+      });
+  } catch (err) {
+    console.error('Error fetching posts:', err);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+});
