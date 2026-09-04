@@ -69,3 +69,35 @@ app.post('/register', async (req, res) => {
     return res.status(500).json({ message: 'Internal server error.' });
   }
 });
+
+//login
+app.post('/login', async (req, res) => {
+  try{
+    const {username, password} = req.body;
+
+    if(!username || !password) {
+      return res.status(400).json({ message: 'All fields are required.' });
+    }
+
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid username or password.' });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+    if (!passwordMatch) {
+      return res.status(400).json({ message: 'Invalid username or password.' });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    return res.status(200).json({ message: 'Login successful.', token });
+  } catch (err) {
+    console.error('Error logging in user:', err);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+});
