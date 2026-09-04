@@ -36,3 +36,36 @@ function authenticateJWT(req, res, next) {
     next();
   });
 }
+
+//Auth routes
+
+//Register
+app.post('/register', async (req, res) => {
+  try{
+    const {username, email, password} = req.body;
+
+    if(!username || !email || !password) {
+      return res.status(400).json({ message: 'All fields are required.' });
+    }
+
+    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User or email already exists.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ username, email, password: hashedPassword });
+    await newUser.save();
+
+    const token = jwt.sign(
+      { id: newUser._id , username: newUser.username }, 
+      JWT_SECRET, 
+      { expiresIn: '1h' }
+    );
+
+    return res.status(201).json({ message: 'User registered successfully.', token });
+  } catch (err) {
+    console.error('Error registering user:', err);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+});
