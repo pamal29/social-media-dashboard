@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const { User, Post } = require('./models');
- 
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
@@ -15,16 +15,15 @@ app.use(express.json());
 app.use(cookieParser());
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('Error connecting to MongoDB:', err));
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
-
-//middleware  
+// ---------- Middleware ----------
 function authenticateJWT(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
-  if(!token) {
+  if (!token) {
     return res.status(401).json({ message: 'Access denied. No token provided.' });
   }
 
@@ -37,20 +36,20 @@ function authenticateJWT(req, res, next) {
   });
 }
 
-//Auth routes
+// ---------- Auth Routes ----------
 
-//Register
+// Register
 app.post('/register', async (req, res) => {
-  try{
-    const {username, email, password} = req.body;
+  try {
+    const { username, email, password } = req.body;
 
-    if(!username || !email || !password) {
-      return res.status(400).json({ message: 'All fields are required.' });
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'Username, email, and password are required.' });
     }
 
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser) {
-      return res.status(400).json({ message: 'User or email already exists.' });
+      return res.status(409).json({ message: 'Username or email already exists.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -58,35 +57,35 @@ app.post('/register', async (req, res) => {
     await newUser.save();
 
     const token = jwt.sign(
-      { id: newUser._id , username: newUser.username }, 
-      JWT_SECRET, 
+      { id: newUser._id, username: newUser.username },
+      JWT_SECRET,
       { expiresIn: '1h' }
     );
 
     return res.status(201).json({ message: 'User registered successfully.', token });
   } catch (err) {
-    console.error('Error registering user:', err);
-    return res.status(500).json({ message: 'Internal server error.' });
+    console.error(err);
+    return res.status(500).json({ message: 'Server error during registration.' });
   }
 });
 
-//login
+// Login
 app.post('/login', async (req, res) => {
-  try{
-    const {username, password} = req.body;
+  try {
+    const { username, password } = req.body;
 
-    if(!username || !password) {
-      return res.status(400).json({ message: 'All fields are required.' });
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required.' });
     }
 
     const user = await User.findOne({ username });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid username or password.' });
+      return res.status(401).json({ message: 'Invalid username or password.' });
     }
 
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
-      return res.status(400).json({ message: 'Invalid username or password.' });
+      return res.status(401).json({ message: 'Invalid username or password.' });
     }
 
     const token = jwt.sign(
@@ -97,20 +96,22 @@ app.post('/login', async (req, res) => {
 
     return res.status(200).json({ message: 'Login successful.', token });
   } catch (err) {
-    console.error('Error logging in user:', err);
-    return res.status(500).json({ message: 'Internal server error.' });
+    console.error(err);
+    return res.status(500).json({ message: 'Server error during login.' });
   }
 });
 
-//logout
+// Logout
 app.post('/logout', authenticateJWT, (req, res) => {
   res.clearCookie('token');
   return res.status(200).json({ message: 'Logout successful. Session removed.' });
 });
 
-//create post
-app.post('/posts', authenticateJWT, async (req, res) => {
-  try{
+// ---------- Post Routes (protected) ----------
+
+// Create post
+app.post('/post', authenticateJWT, async (req, res) => {
+  try {
     const { content } = req.body;
 
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
@@ -122,53 +123,54 @@ app.post('/posts', authenticateJWT, async (req, res) => {
 
     return res.status(201).json({ message: 'Post created successfully.', post: newPost });
   } catch (err) {
-    console.error('Error creating post:', err);
-    return res.status(500).json({ message: 'Internal server error.' });
+    console.error(err);
+    return res.status(500).json({ message: 'Server error while creating post.' });
   }
 });
 
-//get posts with pagination
+// Get posts with pagination
 app.get('/posts', authenticateJWT, async (req, res) => {
-  try{
+  try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
     const skip = (page - 1) * limit;
 
     const posts = await Post.find()
       .populate('author', 'username')
-      .sort({createdAt: -1})
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-      const total = await Post.countDocuments();
+    const total = await Post.countDocuments();
 
-      return res.status(200).json({ 
-        page,
-        limit,
-        totalPosts: total,
-        totalPages: Math.ceil(total / limit)
-      });
+    return res.status(200).json({
+      page,
+      limit,
+      totalPosts: total,
+      totalPages: Math.ceil(total / limit),
+      posts
+    });
   } catch (err) {
-    console.error('Error fetching posts:', err);
-    return res.status(500).json({ message: 'Internal server error.' });
+    console.error(err);
+    return res.status(500).json({ message: 'Server error while fetching posts.' });
   }
 });
 
-//edit post 
-app.put('/posts/:id', authenticateJWT, async (req, res) => {
-  try{
-    const {content} = req.body;
-    if(!content || typeof content !== 'string' || content.trim().length === 0) {
+// Edit post
+app.put('/post/:id', authenticateJWT, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
       return res.status(400).json({ message: 'Post content must be a non-empty string.' });
     }
 
     const post = await Post.findById(req.params.id);
-    if(!post){
+    if (!post) {
       return res.status(404).json({ message: 'Post not found.' });
     }
 
-    if(post.author.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'You are not the owner of this post.' });
+    if (post.author.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'You are not authorized to edit this post.' });
     }
 
     post.content = content;
@@ -176,24 +178,23 @@ app.put('/posts/:id', authenticateJWT, async (req, res) => {
 
     return res.status(200).json({ message: 'Post updated successfully.', post });
   } catch (err) {
-    console.error('Error editing post:', err);
-    return res.status(500).json({ message: 'Internal server error.' });
+    console.error(err);
+    return res.status(500).json({ message: 'Server error while updating post.' });
   }
 });
 
-
-//post delete
+// Delete post
 app.delete('/post/:id', authenticateJWT, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) {
       return res.status(404).json({ message: 'Post not found.' });
     }
- 
+
     if (post.author.toString() !== req.user.id) {
       return res.status(403).json({ message: 'You are not authorized to delete this post.' });
     }
- 
+
     await post.deleteOne();
     return res.status(200).json({ message: 'Post deleted successfully.' });
   } catch (err) {
